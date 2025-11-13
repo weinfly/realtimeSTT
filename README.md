@@ -56,7 +56,7 @@
     ```bash
     mkdir onnx
     ```
-    *   **下载模型**: [点击这里下载模型 (realtimestt-models.7z)](https://github.com/jianchang512/stt/releases/download/0.0/realtimestt-models.7z)
+    *   **下载模型**: [点击这里下载模型 (realtimestt-models.7z)](https://github.com/jianchang512/realtime-stt/releases/download/v0.0/realtimestt-models.7z)
     *   **放置模型**: 下载完成后，解压 `realtimestt-models.7z` 文件，将其中的 **4个模型文件** (`ctc.model.onnx`, `decoder.onnx`, `encoder.onnx`, `tokens.txt`) 移动到刚刚创建的 `onnx` 文件夹内。
 
     完成后的目录结构应如下所示：
@@ -67,7 +67,7 @@
     │   ├── decoder.onnx
     │   ├── encoder.onnx
     │   └── tokens.txt
-    └── stt.py  (或其他 .py 文件)
+    └── stt.py
     ```
 
 ### 步骤 3: 运行应用
