@@ -1,0 +1,21 @@
+[project]
+name = "realtime-stt"
+author = "pyvideotrans.com"
+version = "0.1.0"
+description = "一个极简的本地离线实时语音转文字"
+readme = "README.md"
+requires-python = "==3.12.*"
+dependencies = [
+  "librosa>=0.11.0",
+  "numpy>=2.3.4",
+  "onnxruntime>=1.23.2",
+  "pyinstaller>=6.16.0",
+  "pyside6>=6.10.0",
+  "sherpa-onnx>=1.12.15",
+  "soundcard>=0.4.5",
+  "sounddevice>=0.5.3",
+  "soundfile>=0.13.1",
+]
+
+[[tool.uv.index]]
+url = "https://mirrors.tuna.tsinghua.edu.cn/pypi/web/simple"
