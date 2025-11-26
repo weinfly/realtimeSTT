@@ -324,6 +324,66 @@ class OptimizationWorker(QThread):
         except Exception as e:
             self.optimization_error.emit(f'优化失败: {str(e)}')
 
+
+class MeetingMinutesWorker(QThread):
+    """会议纪要生成Worker - 使用LLM生成结构化的会议纪要"""
+    minutes_ready = Signal(str)
+    minutes_error = Signal(str)
+    
+    def __init__(self, text, target_language, config, parent=None):
+        super().__init__(parent)
+        self.text = text
+        self.target_language = target_language
+        self.config = config
+    
+    def run(self):
+        try:
+            api_base_url = self.config.get('api_base_url', 'http://192.68.11.84:11434/v1')
+            api_key = self.config.get('api_key', 'ollama')
+            model = self.config.get('model', 'translate')
+            timeout = self.config.get('timeout', 60)
+            
+            if not api_key:
+                self.minutes_error.emit('未配置API密钥')
+                return
+            
+            headers = {'Content-Type': 'application/json', 'Authorization': f'Bearer {api_key}'}
+            
+            prompt = f"""你是一个专业的会议记录助手。请根据以下会议内容生成结构化的会议纪要。
+
+会议内容：
+{self.text}
+
+请用{self.target_language}生成会议纪要，包含以下部分：
+1. 会议概要
+2. 讨论要点
+3. 待办事项（包括负责人和截止日期）
+4. 决策事项
+
+格式要求：
+- 使用清晰的标题和列表
+- 待办事项格式：【待办】任务描述 | 负责人：XXX | 截止日期：YYYY-MM-DD
+- 如果内容中没有明确的负责人或截止日期，请标注为"待定"
+"""
+            
+            data = {
+                'model': model,
+                'messages': [{'role': 'user', 'content': prompt}],
+                'temperature': 0.3
+            }
+            
+            url = f"{api_base_url.rstrip('/')}/chat/completions"
+            response = requests.post(url, headers=headers, json=data, timeout=timeout)
+            
+            if response.status_code == 200:
+                result = response.json()
+                minutes = result['choices'][0]['message']['content'].strip()
+                self.minutes_ready.emit(minutes)
+            else:
+                self.minutes_error.emit(f'API错误: {response.status_code}')
+        except Exception as e:
+            self.minutes_error.emit(f'生成失败: {str(e)}')
+
 class RealtimeTranslationWorker(QThread):
     translation_ready = Signal(str)
     
@@ -507,7 +567,7 @@ class Worker(QThread):
 class RealTimeWindow(QWidget):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle('实时语音转文字+翻译 - 支持中文和英文v0.3.0 - WHL')
+        self.setWindowTitle('实时语音转文字+翻译 - 支持中文和英文v0.1.0 - WHL')
         self.setMinimumSize(1000, 700)
         self.layout = QVBoxLayout(self)
         self.setWindowIcon(QIcon(f"{ROOT_DIR}/data/icon.ico"))
@@ -573,6 +633,12 @@ class RealTimeWindow(QWidget):
         self.translation_label.setStyleSheet("font-weight: bold; font-size: 14px;")
         self.trans_control_layout.addWidget(self.translation_label)
         
+        self.auto_translate_checkbox = QCheckBox('自动优化翻译')
+        self.auto_translate_checkbox.setToolTip("开启后，每句话识别完成后会自动进行优化翻译并追加到右侧窗口")
+        self.auto_translate_checkbox.setChecked(self.config.get('auto_translate', True))
+        self.auto_translate_checkbox.stateChanged.connect(self.on_auto_translate_changed)
+        self.trans_control_layout.addWidget(self.auto_translate_checkbox)
+        
         self.smart_optimize_checkbox = QCheckBox('智能优化识别')
         self.smart_optimize_checkbox.setToolTip("使用AI根据上下文优化识别结果，提高准确性")
         self.smart_optimize_checkbox.setChecked(self.config.get('smart_optimize', False))
@@ -589,7 +655,7 @@ class RealTimeWindow(QWidget):
         self.trans_control_layout.addWidget(self.target_lang_combo)
         
         self.translate_button = QPushButton('优化翻译')
-        self.translate_button.setToolTip("对左侧识别原文进行优化翻译，替换右侧翻译结果")
+        self.translate_button.setToolTip("对左侧识别原文进行优化翻译")
         self.translate_button.setCursor(Qt.PointingHandCursor)
         self.translate_button.setMinimumHeight(30)
         self.translate_button.clicked.connect(self.start_translation)
@@ -606,7 +672,44 @@ class RealTimeWindow(QWidget):
         
         self.splitter.addWidget(self.left_widget)
         self.splitter.addWidget(self.right_widget)
-        self.splitter.setSizes([500, 500])
+        
+        # 会议纪要窗口
+        self.minutes_widget = QWidget()
+        self.minutes_layout = QVBoxLayout(self.minutes_widget)
+        self.minutes_layout.setContentsMargins(0, 0, 0, 0)
+        
+        self.minutes_control_layout = QHBoxLayout()
+        self.minutes_label = QLabel('会议纪要')
+        self.minutes_label.setStyleSheet("font-weight: bold; font-size: 14px;")
+        self.minutes_control_layout.addWidget(self.minutes_label)
+        
+        self.minutes_lang_combo = QComboBox()
+        self.minutes_lang_combo.addItems(['中文','英语', '日语', '韩语', '法语', '德语', '西班牙语', '俄语', '阿拉伯语'])
+        default_minutes_lang = self.config.get('default_target_language', '中文')
+        index = self.minutes_lang_combo.findText(default_minutes_lang)
+        if index >= 0:
+            self.minutes_lang_combo.setCurrentIndex(index)
+        self.minutes_control_layout.addWidget(self.minutes_lang_combo)
+        
+        self.generate_minutes_button = QPushButton('生成会议纪要')
+        self.generate_minutes_button.setToolTip("根据识别的原文生成结构化的会议纪要")
+        self.generate_minutes_button.setCursor(Qt.PointingHandCursor)
+        self.generate_minutes_button.setMinimumHeight(30)
+        self.generate_minutes_button.clicked.connect(self.generate_meeting_minutes)
+        self.minutes_control_layout.addWidget(self.generate_minutes_button)
+        self.minutes_control_layout.addStretch()
+        
+        self.minutes_layout.addLayout(self.minutes_control_layout)
+        
+        self.minutes_textedit = QPlainTextEdit()
+        self.minutes_textedit.setReadOnly(True)
+        self.minutes_textedit.setMinimumHeight(400)
+        self.minutes_textedit.setStyleSheet("color:#ffffff")
+        self.minutes_layout.addWidget(self.minutes_textedit)
+        
+        self.splitter.addWidget(self.minutes_widget)
+        self.splitter.setSizes([400, 300, 300])
+
         self.layout.addWidget(self.splitter)
 
         self.button_layout = QHBoxLayout()
@@ -621,6 +724,12 @@ class RealTimeWindow(QWidget):
         self.export_translation_button.setCursor(Qt.PointingHandCursor)
         self.export_translation_button.setMinimumHeight(35)
         self.button_layout.addWidget(self.export_translation_button)
+
+        self.export_minutes_button = QPushButton('导出会议纪要')
+        self.export_minutes_button.clicked.connect(self.export_minutes)
+        self.export_minutes_button.setCursor(Qt.PointingHandCursor)
+        self.export_minutes_button.setMinimumHeight(35)
+        self.button_layout.addWidget(self.export_minutes_button)
 
         self.copy_button = QPushButton('复制原文')
         self.copy_button.setMinimumHeight(35)
@@ -644,12 +753,15 @@ class RealTimeWindow(QWidget):
         self.translation_worker = None
         self.realtime_translation_worker = None
         self.optimization_worker = None
+        self.minutes_worker = None
         self.transcribing = False
         self.last_translated_text = ""
         self.translation_queue = []
         self.is_translating = False
         self.is_optimizing = False
+        self.is_generating_minutes = False
         self.recent_segments = []
+        self.current_realtime_translation = ""
 
     def load_config(self):
         try:
@@ -663,6 +775,7 @@ class RealTimeWindow(QWidget):
                     "model": "gpt-3.5-turbo",
                     "default_target_language": "英语",
                     "timeout": 30,
+                    "auto_translate": True,
                     "smart_optimize": False
                 }
                 with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
@@ -671,6 +784,15 @@ class RealTimeWindow(QWidget):
         except Exception as e:
             print(f"加载配置文件失败: {e}")
             return {}
+
+    def on_auto_translate_changed(self, state):
+        is_checked = state == Qt.Checked
+        self.config['auto_translate'] = is_checked
+        try:
+            with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
+                json.dump(self.config, f, indent=2, ensure_ascii=False)
+        except Exception as e:
+            print(f"保存配置失败: {e}")
     
     def on_smart_optimize_changed(self, state):
         is_checked = state == Qt.Checked
@@ -682,7 +804,6 @@ class RealTimeWindow(QWidget):
             print(f"保存配置失败: {e}")
     
     def start_translation(self, text=None, is_auto=False):
-        """优化翻译 - 用优化后的翻译替换右侧窗口内容"""
         if isinstance(text, bool):
             text = None
             
@@ -693,14 +814,19 @@ class RealTimeWindow(QWidget):
             original_text = text.strip()
             
         if not original_text:
-            QMessageBox.warning(self, '提示', '没有可翻译的内容')
+            if not is_auto:
+                QMessageBox.warning(self, '提示', '没有可翻译的内容')
             return
         
         if not self.config.get('api_key'):
-            QMessageBox.warning(self, '配置错误', f'请先在 {CONFIG_FILE} 中配置 API 密钥（api_key）')
+            if not is_auto:
+                QMessageBox.warning(self, '配置错误', f'请先在 {CONFIG_FILE} 中配置 API 密钥（api_key）')
+            else:
+                print(f'警告：未配置 API 密钥，无法进行自动翻译')
             return
         
         if self.is_translating:
+            self.translation_queue.append((original_text, is_auto))
             return
         
         self.is_translating = True
@@ -708,24 +834,34 @@ class RealTimeWindow(QWidget):
         
         self.translate_button.setEnabled(False)
         self.translate_button.setText('翻译中...')
-        self.translation_textedit.setPlainText('正在优化翻译，请稍候...')
+        
+        if not is_auto:
+            self.translation_textedit.setPlainText('正在翻译，请稍候...')
+            self.last_translated_text = ""
         
         self.translation_worker = TranslationWorker(original_text, target_language, self.config)
-        self.translation_worker.translation_ready.connect(self.on_translation_ready)
-        self.translation_worker.translation_error.connect(self.on_translation_error)
+        self.translation_worker.translation_ready.connect(lambda t: self.on_translation_ready(t, is_auto))
+        self.translation_worker.translation_error.connect(lambda e: self.on_translation_error(e, is_auto))
         self.translation_worker.start()
     
-    def on_translation_ready(self, translation):
-        """优化翻译完成 - 替换右侧窗口内容，每行带时间戳"""
-        lines = translation.split('\n')
-        result_lines = []
+    def on_translation_ready(self, translation, is_auto=False):
         timestamp = time.strftime("[%H:%M:%S]")
         
-        for line in lines:
-            if line.strip():
-                result_lines.append(f"{timestamp} {line}")
-        
-        self.translation_textedit.setPlainText('\n'.join(result_lines))
+        if is_auto:
+            # 自动翻译：追加到现有内容
+            current_text = self.translation_textedit.toPlainText()
+            if current_text and not current_text.startswith('正在翻译'):
+                self.translation_textedit.appendPlainText(f"{timestamp} {translation}")
+            else:
+                self.translation_textedit.setPlainText(f"{timestamp} {translation}")
+        else:
+            # 手动优化翻译：替换所有内容，每行带时间戳
+            lines = translation.split('\n')
+            result_lines = []
+            for line in lines:
+                if line.strip():
+                    result_lines.append(f"{timestamp} {line}")
+            self.translation_textedit.setPlainText('\n'.join(result_lines))
         
         scrollbar = self.translation_textedit.verticalScrollBar()
         scrollbar.setValue(scrollbar.maximum())
@@ -733,16 +869,25 @@ class RealTimeWindow(QWidget):
         self.translate_button.setEnabled(True)
         self.translate_button.setText('优化翻译')
         self.is_translating = False
-
-    def on_translation_error(self, error_msg):
-        """优化翻译失败 - 不替换，保留原来的实时翻译结果"""
-        print(f'优化翻译失败：{error_msg}')
-        QMessageBox.warning(self, '翻译错误', f'优化翻译失败：\n{error_msg}\n\n保留原来的实时翻译结果')
         
-        # 恢复按钮状态，但不清空翻译结果
+        if self.translation_queue:
+            next_text, next_is_auto = self.translation_queue.pop(0)
+            self.start_translation(next_text, next_is_auto)
+
+    def on_translation_error(self, error_msg, is_auto=False):
+        if is_auto:
+            print(f'自动翻译失败：{error_msg}')
+        else:
+            self.translation_textedit.setPlainText(f'翻译失败：\n{error_msg}')
+            QMessageBox.warning(self, '翻译错误', error_msg)
+        
         self.translate_button.setEnabled(True)
         self.translate_button.setText('优化翻译')
         self.is_translating = False
+        
+        if self.translation_queue:
+            next_text, next_is_auto = self.translation_queue.pop(0)
+            self.start_translation(next_text, next_is_auto)
 
     def check_model_exist(self):
         if not Path(PAR_ENCODER).exists() or not Path(CTC_MODEL_FILE).exists() or not Path(PAR_DECODER).exists():
@@ -846,24 +991,10 @@ class RealTimeWindow(QWidget):
             self.realtime_translation_worker.update_text(text)
             
     def update_realtime_translation(self, text):
-        """更新实时翻译显示，同时同步到右侧翻译结果窗口"""
+        """更新实时翻译显示（仅更新实时翻译预览区域）"""
         self.realtime_translation.setPlainText(text)
-        
-        # 同时将实时翻译结果同步到右侧翻译结果窗口（带时间戳）
-        if text.strip():
-            timestamp = time.strftime("[%H:%M:%S]")
-            display_text = f"{timestamp} {text}"
-            
-            # 追加到翻译结果窗口
-            current_text = self.translation_textedit.toPlainText()
-            if current_text:
-                self.translation_textedit.appendPlainText(display_text)
-            else:
-                self.translation_textedit.setPlainText(display_text)
-            
-            # 自动滚动到底部
-            scrollbar = self.translation_textedit.verticalScrollBar()
-            scrollbar.setValue(scrollbar.maximum())
+        # 保存当前实时翻译结果，供段落完成时使用
+        self.current_realtime_translation = text
 
     def update_realtime_ready(self):
         self.realtime_text.setPlainText('请说话...')
@@ -912,7 +1043,7 @@ class RealTimeWindow(QWidget):
         self.display_segment(original_text)
     
     def display_segment(self, text):
-        """显示文本段落（带时间戳）"""
+        """显示文本段落（带时间戳）并同时写入翻译结果"""
         # 添加到最近段落列表
         self.recent_segments.append(text)
         if len(self.recent_segments) > 10:
@@ -922,9 +1053,23 @@ class RealTimeWindow(QWidget):
         timestamp = time.strftime("[%H:%M:%S]")
         display_text = f"{timestamp} {text}"
         
+        # 写入原文到左侧窗口
         self.textedit.appendPlainText(display_text)
         scrollbar = self.textedit.verticalScrollBar()
         scrollbar.setValue(scrollbar.maximum())
+        
+        # 同时写入实时翻译结果到右侧窗口（如果有）
+        if self.current_realtime_translation.strip():
+            translation_text = f"{timestamp} {self.current_realtime_translation}"
+            self.translation_textedit.appendPlainText(translation_text)
+            scrollbar = self.translation_textedit.verticalScrollBar()
+            scrollbar.setValue(scrollbar.maximum())
+            # 清空当前实时翻译
+            self.current_realtime_translation = ""
+        
+        # 如果启用了自动翻译，翻译当前段落（这会替换实时翻译结果）
+        if self.auto_translate_checkbox.isChecked():
+            self.start_translation(text, is_auto=True)
 
     def export_txt(self):
         text=self.textedit.toPlainText().strip()
@@ -953,12 +1098,111 @@ class RealTimeWindow(QWidget):
         text = self.textedit.toPlainText()
         QApplication.clipboard().setText(text)
 
-    def clear_textedit(self):
+    def generate_meeting_minutes(self):
+        """生成会议纪要"""
+        raw_text = self.textedit.toPlainText().strip()
+        original_text = re.sub(r'\[\d{2}:\d{2}:\d{2}\] ', '', raw_text)
+        
+        if not original_text:
+            QMessageBox.warning(self, '提示', '没有可生成会议纪要的内容')
+            return
+        
+        if not self.config.get('api_key'):
+            QMessageBox.warning(self, '配置错误', f'请先在 {CONFIG_FILE} 中配置 API 密钥（api_key）')
+            return
+        
+        if self.is_generating_minutes:
+            return
+        
+        self.is_generating_minutes = True
+        target_language = self.minutes_lang_combo.currentText()
+        
+        self.generate_minutes_button.setEnabled(False)
+        self.generate_minutes_button.setText('生成中...')
+        self.minutes_textedit.setPlainText('正在生成会议纪要，请稍候...')
+        
+        self.minutes_worker = MeetingMinutesWorker(original_text, target_language, self.config)
+        self.minutes_worker.minutes_ready.connect(self.on_minutes_ready)
+        self.minutes_worker.minutes_error.connect(self.on_minutes_error)
+        self.minutes_worker.start()
+    
+    def on_minutes_ready(self, minutes):
+        """会议纪要生成完成"""
+        self.minutes_textedit.setPlainText(minutes)
+        
+        scrollbar = self.minutes_textedit.verticalScrollBar()
+        scrollbar.setValue(scrollbar.maximum())
+        
+        self.generate_minutes_button.setEnabled(True)
+        self.generate_minutes_button.setText('生成会议纪要')
+        self.is_generating_minutes = False
+    
+    def on_minutes_error(self, error_msg):
+        """会议纪要生成失败"""
+        print(f'会议纪要生成失败：{error_msg}')
+        self.minutes_textedit.setPlainText(f'生成失败：\n{error_msg}')
+        QMessageBox.warning(self, '生成错误', f'会议纪要生成失败：\n{error_msg}')
+        
+        self.generate_minutes_button.setEnabled(True)
+        self.generate_minutes_button.setText('生成会议纪要')
+        self.is_generating_minutes = False
+    
+    def export_minutes(self):
+        """导出会议纪要"""
+        text = self.minutes_textedit.toPlainText().strip()
+        if not text:
+            QMessageBox.warning(self, '提示', '没有可导出的会议纪要')
+            return
+        file_name, _ = QFileDialog.getSaveFileName(self, "保存会议纪要", "", "Text files (*.txt)")
+        if file_name:
+            if not file_name.endswith(".txt"):
+                file_name += ".txt"
+            with open(file_name, 'w', encoding='utf-8') as f:
+                f.write(text)
+    
+        def clear_textedit(self):
+        # 自动导出临时文件
+        timestamp = time.strftime("%Y%m%d_%H%M%S")
+        exported_files = []
+        
+        # 导出原文
+        original_text = self.textedit.toPlainText().strip()
+        if original_text:
+            filename = f"{OUT_DIR}/{timestamp}-原文-tmp.txt"
+            with open(filename, 'w', encoding='utf-8') as f:
+                f.write(original_text)
+            exported_files.append(f"原文: {filename}")
+        
+        # 导出译文
+        translation_text = self.translation_textedit.toPlainText().strip()
+        if translation_text:
+            filename = f"{OUT_DIR}/{timestamp}-译文-tmp.txt"
+            with open(filename, 'w', encoding='utf-8') as f:
+                f.write(translation_text)
+            exported_files.append(f"译文: {filename}")
+        
+        # 导出会议纪要
+        minutes_text = self.minutes_textedit.toPlainText().strip()
+        if minutes_text:
+            filename = f"{OUT_DIR}/{timestamp}-会议纪要-tmp.txt"
+            with open(filename, 'w', encoding='utf-8') as f:
+                f.write(minutes_text)
+            exported_files.append(f"会议纪要: {filename}")
+        
+        # 如果有导出文件，显示提示
+        if exported_files:
+            print(f"已自动导出临时文件:")
+            for file in exported_files:
+                print(f"  - {file}")
+        
+        # 清空所有窗口
         self.textedit.clear()
         self.translation_textedit.clear()
+        self.minutes_textedit.clear()
         self.last_translated_text = ""
         self.translation_queue.clear()
         self.recent_segments.clear()
+        self.current_realtime_translation = ""
 
     def on_language_changed(self, index):
         if self.realtime_translation_worker:
@@ -987,6 +1231,8 @@ class RealTimeWindow(QWidget):
             self.realtime_translation_worker.stop()
         if self.optimization_worker and self.optimization_worker.isRunning():
             self.optimization_worker.wait()
+        if self.minutes_worker and self.minutes_worker.isRunning():
+            self.minutes_worker.wait()
         super().closeEvent(event)
 
 if __name__ == "__main__":
