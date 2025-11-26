@@ -339,6 +339,7 @@ class Worker(QThread):
         self.ready.emit()
         self.running = True
         last_result = ""
+        stable_count = 0  # 稳定计数器
         
         while self.running:
             if self.audio_mode == AudioSource.MICROPHONE:
@@ -373,17 +374,42 @@ class Worker(QThread):
 
             is_endpoint = recognizer.is_endpoint(stream)
             result = recognizer.get_result(stream)
+            
+            # Debug logging
+            if result:
+                print(f"[DEBUG] Result: '{result}', is_endpoint: {is_endpoint}, stable_count: {stable_count}")
 
             if result != last_result:
                 self.new_word.emit(result)
                 last_result = result
+                stable_count = 0  # 重置稳定计数
+            else:
+                if result:  # 只有当有结果时才增加计数
+                    stable_count += 1
 
+            # 基于稳定计数的自动提交机制
+            # 如果结果连续稳定8次(约0.8秒),自动提交
+            if result and stable_count >= 8:
+                print(f"[DEBUG] Auto-commit triggered! Result: '{result}' (stable for {stable_count} iterations)")
+                punctuated = PUNCT_MODEL(result)
+                print(f"[DEBUG] Punctuated: '{punctuated}'")
+                txt_file.write(punctuated)
+                self.new_segment.emit(punctuated)
+                recognizer.reset(stream)
+                last_result = ""
+                stable_count = 0
+
+            # 保留原有的端点检测逻辑(以防将来工作)
             if is_endpoint:
+                print(f"[DEBUG] Endpoint detected! Result: '{result}'")
                 if result:
                     punctuated = PUNCT_MODEL(result)
+                    print(f"[DEBUG] Punctuated: '{punctuated}'")
                     txt_file.write(punctuated)
                     self.new_segment.emit(punctuated)
                 recognizer.reset(stream)
+                last_result = ""
+                stable_count = 0
 
         if mic_stream is not None:
             mic_stream.stop()

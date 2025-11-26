@@ -138,5 +138,8 @@ def create_recognizer():
         feature_dim=80,
         decoding_method="greedy_search",
         max_active_paths=4,
+        rule1_min_trailing_silence=0.6,  # 更短的尾部静音时间
+        rule2_min_trailing_silence=0.4,  # 更短的解码后静音时间
+        rule3_min_utterance_length=5,    # 更短的最小话语长度
     )
     return recognizer

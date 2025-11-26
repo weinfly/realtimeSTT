@@ -50,6 +50,7 @@ class RealTimeWindow(QWidget):
         self.mode_combo.addItem(AudioSource.MICROPHONE.value, AudioSource.MICROPHONE)
         self.mode_combo.addItem(AudioSource.SYSTEM.value, AudioSource.SYSTEM)
         self.mode_combo.addItem(AudioSource.BOTH.value, AudioSource.BOTH)
+        self.mode_combo.setCurrentIndex(2)  # 默认选择"麦克风+系统声音"
         self.mic_layout.addWidget(self.mode_label)
         self.mic_layout.addWidget(self.mode_combo)
 
