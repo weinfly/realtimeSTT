@@ -128,6 +128,8 @@ class OnnxModel:
         return "".join(ans)
 
 def create_recognizer():
+    # 使用最基本的配置，不尝试端点检测
+    print(f"[DEBUG] Creating basic recognizer without endpoint detection")
     recognizer = sherpa_onnx.OnlineRecognizer.from_transducer(
         tokens=PAR_TOKENS,
         encoder=PAR_ENCODER,
@@ -138,8 +140,7 @@ def create_recognizer():
         feature_dim=80,
         decoding_method="greedy_search",
         max_active_paths=4,
-        rule1_min_trailing_silence=0.6,  # 更短的尾部静音时间
-        rule2_min_trailing_silence=0.4,  # 更短的解码后静音时间
-        rule3_min_utterance_length=5,    # 更短的最小话语长度
     )
+    
+    print(f"[DEBUG] Basic recognizer created successfully")
     return recognizer

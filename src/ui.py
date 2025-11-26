@@ -62,6 +62,7 @@ class RealTimeWindow(QWidget):
         self.mic_layout.addWidget(self.start_button)
         self.layout.addLayout(self.mic_layout)
 
+        # 实时识别文本窗口
         self.realtime_text = QPlainTextEdit()
         self.realtime_text.setReadOnly(True)
         self.realtime_text.setStyleSheet("background: transparent; border: none;font-size:14px")
@@ -401,7 +402,7 @@ class RealTimeWindow(QWidget):
         if self.check_model_exist() is not True:
             return
         if not self.transcribing:
-            self.realtime_text.setPlainText('请稍等...')
+            self.realtime_text.setPlainText('请稍等，正在加载模型，请在出现"请说话"后开始说话...')
             device_data = self.combo.currentData()
             audio_mode = self.mode_combo.currentData()
             
@@ -450,9 +451,8 @@ class RealTimeWindow(QWidget):
             self.translate_button.setEnabled(True)
             remaining_text = self.realtime_text.toPlainText().strip()
             if remaining_text:
-                self.textedit.appendPlainText(remaining_text)
-                scrollbar = self.textedit.verticalScrollBar()
-                scrollbar.setValue(scrollbar.maximum())
+                # 通过正常的段处理流程处理最后一段话
+                self.append_segment(remaining_text)
             self.realtime_text.clear()
             self.realtime_translation.clear()
 
@@ -473,8 +473,12 @@ class RealTimeWindow(QWidget):
         self.realtime_text.setPlainText('请说话...')
 
     def append_segment(self, text):
-        # 过滤不规则内容
-        text = text.replace('<unk>', '').strip()
+        # 过滤不规则内容，但保留标点符号
+        # 使用更精确的过滤，只移除 <unk> 标记和多余空格
+        text = re.sub(r'<unk>', '', text)  # 移除 <unk> 标记
+        text = re.sub(r'\s+', ' ', text)   # 将多个空格替换为单个空格
+        text = text.strip()                # 移除首尾空格
+        
         if not text:
             return
         
@@ -517,14 +521,24 @@ class RealTimeWindow(QWidget):
     
     def display_segment(self, text):
         """显示文本段落（带时间戳）并同时写入翻译结果"""
+        print(f"[UI DEBUG] Displaying segment: '{text}'")
+        
         # 添加到最近段落列表
         self.recent_segments.append(text)
         if len(self.recent_segments) > 10:
             self.recent_segments.pop(0)
         
-        # 添加时间戳
+        # 确保文本以适当的标点符号结尾
+        if text and text[-1] not in ['。', '！', '？', '，', '；', '：', '.', '!', '?', ',', ';', ':']:
+            # 如果文本没有以标点结尾，添加句号
+            text += '。'
+            print(f"[UI DEBUG] Added period: '{text}'")
+        
+        # 添加时间戳（更精确的格式，包含毫秒）
         timestamp = time.strftime("[%H:%M:%S]")
         display_text = f"{timestamp} {text}"
+        
+        print(f"[UI DEBUG] Final display text: '{display_text}'")
         
         # 写入原文到左侧窗口
         self.textedit.appendPlainText(display_text)

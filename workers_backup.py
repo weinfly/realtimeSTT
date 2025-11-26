@@ -1,5 +1,5 @@
 """
-工作线程模块
+工作线程模块 - 备份版本
 包含所有后台处理线程：语音识别、翻译、优化和会议纪要生成
 """
 
@@ -289,28 +289,20 @@ class Worker(QThread):
     def commit_sentence(self, text, txt_file):
         """提交句子到文件和UI"""
         try:
-            PUNCT_MODEL = OnnxModel()
             punctuated = PUNCT_MODEL(text)
             print(f"[DEBUG] Punctuated: '{punctuated}'")
             
-            # 检查标点符号模型是否返回了大量<unk>
-            if punctuated.count('<unk>') > len(text.split()) // 2:
-                # 如果超过一半的词是<unk>，说明标点符号模型不适用于该文本
-                print(f"[DEBUG] Too many <unk> in punctuated text, using original with basic punctuation")
-                punctuated = text + '。\n'  # 添加基本句号
-            else:
-                # 确保文本以换行符结尾，便于阅读
-                if punctuated and not punctuated.endswith('\n'):
-                    punctuated += '\n'
+            # 确保文本以换行符结尾，便于阅读
+            if punctuated and not punctuated.endswith('\n'):
+                punctuated += '\n'
             
             txt_file.write(punctuated)
             txt_file.flush()  # 立即写入文件
             self.new_segment.emit(punctuated.strip())  # 发送给UI时去掉换行符
-            
         except Exception as e:
             print(f"[DEBUG] Punctuation model failed: {e}, using original text")
             # 如果标点符号模型失败，直接使用原文
-            punctuated = text + '。\n'  # 添加基本句号
+            punctuated = text + '\n'
             txt_file.write(punctuated)
             txt_file.flush()
             self.new_segment.emit(punctuated.strip())
@@ -330,6 +322,7 @@ class Worker(QThread):
             if self.sys_idx is not None:
                 print(f'使用系统声音: {devices[self.sys_idx]["name"]}')
         
+        PUNCT_MODEL = OnnxModel()
         recognizer = create_recognizer()
         stream = recognizer.create_stream()
 
@@ -369,16 +362,9 @@ class Worker(QThread):
         last_result = ""
         current_text = ""  # 当前累积的文本
         
-        # 改进的句子检测参数
+        # 极简的句子检测参数
         frames_since_commit = 0  # 距离上次提交的帧数
-        min_frames_between_commits = 50  # 最小间隔5秒
-        frames_since_last_change = 0  # 距离上次文本变化的帧数
-        min_frames_for_stable_commit = 25  # 文本稳定2.5秒后提交
-        
-        # 新增：软稳定检测
-        last_text_length = 0  # 记录上次文本长度
-        frames_significant_change = 0  # 距离上次显著变化的帧数
-        min_frames_for_length_based_commit = 30  # 文本长度稳定3秒后提交
+        min_frames_between_commits = 30  # 最小间隔3秒
         
         print(f"[DEBUG] Worker started with minimal sentence detection")
         print(f"[DEBUG] Minimum frames between commits: {min_frames_between_commits}")
@@ -419,83 +405,29 @@ class Worker(QThread):
             
             # 更新计数器
             frames_since_commit += 1
-            frames_since_last_change += 1
             
-            # 改进的提交逻辑：
+            # 极简逻辑：
             if result and len(result.strip()) > 0:
-                current_text_length = len(result.strip())
-                
+                # 有识别结果
                 if result != last_result:
                     # 结果变化，更新显示
                     self.new_word.emit(result)
                     current_text = result
-                    
-                    # 检查是否是显著变化（长度变化超过15个字符）
-                    if abs(current_text_length - last_text_length) > 15:
-                        frames_significant_change = 0  # 重置显著变化计数器
-                        print(f"[DEBUG] Text updated: '{result}', length={current_text_length}, significant_change reset to 0 (BIG CHANGE)")
-                    else:
-                        frames_significant_change += 1
-                        print(f"[DEBUG] Text updated: '{result}', length={current_text_length}, frames_significant_change={frames_significant_change} (small change)")
-                    
-                    frames_since_last_change = 0  # 重置完全变化计数器
-                    last_text_length = current_text_length
-                else:
-                    # 结果相同但不是完全稳定
-                    frames_since_last_change += 1
-                    frames_significant_change += 1
-                    
-                    print(f"[DEBUG] Text unchanged: '{result}', frames_since_last_change={frames_since_last_change}, frames_significant_change={frames_significant_change}")
-                    
-                    # 检查多种提交条件
-                    should_commit = False
-                    commit_reason = ""
-                    
-                    # 条件1：完全稳定3秒
-                    if frames_since_last_change >= min_frames_for_stable_commit:
-                        should_commit = True
-                        commit_reason = "COMPLETELY_STABLE"
-                    
-                    # 条件2：长度稳定4秒（针对持续小幅度修改的情况）
-                    elif (frames_significant_change >= min_frames_for_length_based_commit and 
-                          len(current_text.strip()) >= 20):  # 至少20个字符才使用长度稳定
-                        should_commit = True
-                        commit_reason = "LENGTH_BASED_STABLE"
-                    
-                    if should_commit:
-                        cleaned_text = current_text.replace('<unk>', '').strip()
-                        print(f"[DEBUG] === COMMITTING TEXT ({commit_reason}) ===")
-                        print(f"[DEBUG] Text: '{cleaned_text}', Stable frames: {frames_since_last_change}, Length stable frames: {frames_significant_change}")
-                        self.commit_sentence(cleaned_text, txt_file)
-                        
-                        # 重置状态
-                        recognizer.reset(stream)
-                        current_text = ""
-                        frames_since_commit = 0
-                        frames_since_last_change = 0
-                        frames_significant_change = 0
-                        last_text_length = 0
-                        print(f"[DEBUG] === RESET AFTER COMMIT ===")
+                    print(f"[DEBUG] Text updated: '{result}'")
             else:
-                # 没有识别结果 - 这也是提交的机会（用于处理突发静音）
-                frames_since_last_change += 1
-                frames_significant_change += 1
-                
+                # 没有识别结果 - 这是提交的机会
                 if current_text and len(current_text.strip()) > 0 and frames_since_commit >= min_frames_between_commits:
                     cleaned_text = current_text.replace('<unk>', '').strip()
                     if len(cleaned_text) >= 3:  # 至少3个字符
-                        print(f"[DEBUG] === COMMITTING TEXT (SILENCE) ===")
-                        print(f"[DEBUG] Text: '{cleaned_text}', Frames since last commit: {frames_since_commit}")
+                        print(f"[DEBUG] === COMMITTING TEXT ===")
+                        print(f"[DEBUG] Text: '{cleaned_text}', Frames since last: {frames_since_commit}")
                         self.commit_sentence(cleaned_text, txt_file)
                         
                         # 重置状态
                         recognizer.reset(stream)
                         current_text = ""
                         frames_since_commit = 0
-                        frames_since_last_change = 0
-                        frames_significant_change = 0
-                        last_text_length = 0
-                        print(f"[DEBUG] === RESET AFTER SILENCE COMMIT ===")
+                        print(f"[DEBUG] === RESET FOR NEXT SENTENCE ===")
 
             last_result = result
 
