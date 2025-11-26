@@ -1,8 +1,8 @@
 [project]
 name = "realtime-stt"
 author = "pyvideotrans.com"
-version = "0.1.0"
-description = "一个极简的本地离线实时语音转文字"
+version = "0.2.0"
+description = "一个极简的本地离线实时语音转文字和翻译工具"
 readme = "README.md"
 requires-python = "==3.12.*"
 dependencies = [
@@ -11,6 +11,7 @@ dependencies = [
   "onnxruntime>=1.23.2",
   "pyinstaller>=6.16.0",
   "pyside6>=6.10.0",
+  "requests>=2.31.0",
   "sherpa-onnx>=1.12.15",
   "soundcard>=0.4.5",
   "sounddevice>=0.5.3",

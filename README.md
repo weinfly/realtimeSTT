@@ -2,6 +2,14 @@
 
 这是一个基于 PySide6 和 [Sherpa-Onnx](https://github.com/k2-fsa/sherpa-onnx) 开发的桌面应用，能够将你的中文（及中英混合）语音实时转换为带标点符号的文字。它非常适合用于会议记录、课堂笔记、语音写作等场景。
 
+本项目是基于https://github.com/jianchang512/realtime-stt/tree/main的修改，增加实时翻译等功能
+
+计划新增的功能：
+1、结束后重新整理翻译，并在完成后替换原来的内容
+2、增加AI会议纪要功能，会议纪要可选语言
+3、
+
+
 ---
 
 ## 界面截图
@@ -106,5 +114,4 @@ uv sync
 *   **ONNX 推理**: [onnxruntime](https://onnxruntime.ai/)
 *   **音频 I/O**: [sounddevice](https://python-sounddevice.readthedocs.io/)
 *   **数值计算**: [NumPy](https://numpy.org/)
-
 
