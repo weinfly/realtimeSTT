@@ -236,9 +236,45 @@ class TranslationWorker(QThread):
         self.text = text
         self.target_language = target_language
         self.config = config
+    
+    def detect_language(self, text):
+        """简单的语言检测：基于字符判断是中文还是英文"""
+        if not text:
+            return "unknown"
+        
+        # 统计中文字符和英文字符
+        chinese_chars = 0
+        english_chars = 0
+        
+        for char in text:
+            if '\u4e00' <= char <= '\u9fff':  # 中文字符范围
+                chinese_chars += 1
+            elif 'a' <= char.lower() <= 'z':  # 英文字符
+                english_chars += 1
+        
+        total_chars = chinese_chars + english_chars
+        if total_chars == 0:
+            return "unknown"
+        
+        # 如果中文字符占比超过30%，认为是中文
+        if chinese_chars / total_chars > 0.3:
+            return "中文"
+        # 如果英文字符占比超过50%，认为是英文
+        elif english_chars / total_chars > 0.5:
+            return "英语"
+        else:
+            return "unknown"
     
     def run(self):
         try:
+            # 检测源语言
+            detected_lang = self.detect_language(self.text)
+            
+            # 如果检测到的语言与目标语言相同，跳过翻译
+            if detected_lang == self.target_language:
+                self.translation_ready.emit(f"[提示] 原文已经是{self.target_language}，无需翻译")
+                return
+            
             api_base_url = self.config.get('api_base_url', 'http://192.68.11.84:11434/v1')
             api_key = self.config.get('api_key', 'ollama')
             model = self.config.get('model', 'translate')

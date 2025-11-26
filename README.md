@@ -59,8 +59,8 @@
 
 1.  **克隆本仓库**:
     ```bash
-    git clone https://github.com/jianchang512/realtime-stt.git
-    cd realtime-stt
+    git clone https://github.com/weinfly/realtimeSTT.git
+    cd realtimeSTT
     ```
 
 2.  **创建 `onnx` 文件夹并下载模型**:
@@ -73,7 +73,7 @@
 
     完成后的目录结构应如下所示：
     ```
-    realtime-stt/
+    realtimeSTT/
     ├── onnx/
     │   ├── ctc.model.onnx
     │   ├── decoder.onnx
@@ -94,18 +94,18 @@ uv sync
 
 ### 使用方法
 
-1.  启动应用后，从下拉菜单中选择正确的麦克风设备。
+1.  启动应用后，从下拉菜单中选择对应的系统声音或麦克风设备。
 2.  点击 **"启动实时语音转文字"** 按钮。
-3.  开始说话，识别的中间结果会显示在上方文本框中。
-4.  当您停顿一段时间后，一句完整的话会自动整理并添加标点，显示在下方的主文本区域。
+3.  开始说话，识别的中间结果和同步翻译结果会显示在上方文本框中。
+4.  当您停顿一段时间后，一句完整的话会自动整理并添加标点，显示在下方的主文本区域，同时中间窗口会同步翻译结果。
 5.  点击 **"正在语音转文字中..."** 按钮可以停止转录。
-6.  所有录音文件（`.wav`）和对应的文本记录（`.txt`）会自动保存在 `output` 文件夹中。
+6.  所有录音文件（`.wav`）和对应的文本记录(原文、译文、会议纪要等)（`.txt`）会自动保存在 `output` 文件夹中。
 
-## 预构建包
+## 预构建包(暂无)
 
 如果你不想手动配置环境，可以直接下载为 Windows 用户准备的预构建包。
 
-➡️ [**前往 Releases 页面下载**](https://github.com/jianchang512/realtime-stt/releases)
+➡️ [**前往 Releases 页面下载**](https://github.com/weinfly/realtimeSTT/releases)
 
 下载后解压即可运行，无需安装 Python 或其他依赖。
 
