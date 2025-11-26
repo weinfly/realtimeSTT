@@ -724,12 +724,18 @@ class RealTimeWindow(QWidget):
         self.export_translation_button.setCursor(Qt.PointingHandCursor)
         self.export_translation_button.setMinimumHeight(35)
         self.button_layout.addWidget(self.export_translation_button)
-
-        self.export_minutes_button = QPushButton('导出会议纪要')
-        self.export_minutes_button.clicked.connect(self.export_minutes)
-        self.export_minutes_button.setCursor(Qt.PointingHandCursor)
-        self.export_minutes_button.setMinimumHeight(35)
-        self.button_layout.addWidget(self.export_minutes_button)
+
+
+        self.export_minutes_button = QPushButton('导出会议纪要')
+
+        self.export_minutes_button.clicked.connect(self.export_minutes)
+
+        self.export_minutes_button.setCursor(Qt.PointingHandCursor)
+
+        self.export_minutes_button.setMinimumHeight(35)
+
+        self.button_layout.addWidget(self.export_minutes_button)
+
 
         self.copy_button = QPushButton('复制原文')
         self.copy_button.setMinimumHeight(35)
@@ -1160,7 +1166,7 @@ class RealTimeWindow(QWidget):
             with open(file_name, 'w', encoding='utf-8') as f:
                 f.write(text)
     
-        def clear_textedit(self):
+    def clear_textedit(self):
         # 自动导出临时文件
         timestamp = time.strftime("%Y%m%d_%H%M%S")
         exported_files = []
