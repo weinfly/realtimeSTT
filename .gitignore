@@ -10,13 +10,7 @@ onnx/
 *.egg-info
 *.onnx
 *.spec
-config.json
 ffmpeg.exe
-ffplay.exe
-ffprobe.exe
-stt_backup.py
-stt_before_translation.py
-stt-0ld.py
 config.yaml
 tokens.txt
 # Virtual environments

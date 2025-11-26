@@ -34,8 +34,9 @@ Path(LOG_DIR).mkdir(exist_ok=True)
 
 # 模型文件路径
 CTC_MODEL_FILE = f"{MODEL_DIR}/ctc.model.onnx"
-PAR_ENCODER = f"{MODEL_DIR}/encoder.onnx"
-PAR_DECODER = f"{MODEL_DIR}/decoder.onnx"
+PAR_ENCODER = f"{MODEL_DIR}/encoder-epoch-99-avg-1.onnx"
+PAR_DECODER = f"{MODEL_DIR}/decoder-epoch-99-avg-1.onnx"
+PAR_JOINER = f"{MODEL_DIR}/joiner-epoch-99-avg-1.onnx"
 PAR_TOKENS = f"{MODEL_DIR}/tokens.txt"
 
 # 环境变量设置

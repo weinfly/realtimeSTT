@@ -1,0 +1,8 @@
+{
+  "api_base_url": "http://192.168.11.84:11434/v1",
+  "api_key": "ollama",
+  "model": "translate",
+  "default_target_language": "中文",
+  "auto_translate": false,
+  "timeout": 30
+}

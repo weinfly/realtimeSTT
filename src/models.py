@@ -10,6 +10,7 @@ from .config import (
     CTC_MODEL_FILE, 
     PAR_ENCODER, 
     PAR_DECODER, 
+    PAR_JOINER,
     PAR_TOKENS
 )
 
@@ -127,12 +128,15 @@ class OnnxModel:
         return "".join(ans)
 
 def create_recognizer():
-    encoder = PAR_ENCODER
-    decoder = PAR_DECODER
-    tokens = PAR_TOKENS
-    recognizer = sherpa_onnx.OnlineRecognizer.from_paraformer(
-        tokens=tokens, encoder=encoder, decoder=decoder, num_threads=2, sample_rate=16000,
-        feature_dim=80, enable_endpoint_detection=True, rule1_min_trailing_silence=2.4,
-        rule2_min_trailing_silence=1.2, rule3_min_utterance_length=20,
+    recognizer = sherpa_onnx.OnlineRecognizer.from_transducer(
+        tokens=PAR_TOKENS,
+        encoder=PAR_ENCODER,
+        decoder=PAR_DECODER,
+        joiner=PAR_JOINER,
+        num_threads=2,
+        sample_rate=16000,
+        feature_dim=80,
+        decoding_method="greedy_search",
+        max_active_paths=4,
     )
     return recognizer
