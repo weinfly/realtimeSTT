@@ -1,8 +1,9 @@
 {
-  "api_base_url": "http://192.168.11.84:11434/v1",
-  "api_key": "ollama",
-  "model": "translate",
-  "default_target_language": "中文",
-  "auto_translate": false,
-  "timeout": 30
+  "api_base_url": "https://api.openai.com/v1",
+  "api_key": "",
+  "model": "gpt-3.5-turbo",
+  "default_target_language": "英语",
+  "timeout": 30,
+  "auto_translate": true,
+  "smart_optimize": false
 }

@@ -9,6 +9,7 @@ dependencies = [
   "librosa>=0.11.0",
   "numpy>=2.3.4",
   "onnxruntime>=1.23.2",
+  "pyaudiowpatch>=0.2.12",
   "pyinstaller>=6.16.0",
   "pyside6>=6.10.0",
   "requests>=2.31.0",
